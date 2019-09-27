@@ -1,6 +1,8 @@
 import re
 from datetime import datetime
 
+from lib.hathiCover import HathiCover
+
 from lib.dataModel import (
     WorkRecord,
     Identifier,
@@ -300,7 +302,7 @@ class HathiRecord():
 
     def __repr__(self):
         return '<Hathi(title={})>'.format(self.work.title)
-    
+
     def buildDataModel(self, countryCodes):
         logger.debug('Generating work record for bib record {}'.format(
             self.ingest['bib_key']
@@ -325,7 +327,7 @@ class HathiRecord():
             self.ingest['htid']
         ))
         self.buildItem()
-        
+
         logger.debug('Generate a rights object for the associated rights statement {}'.format(
             self.ingest['rights']
         ))
@@ -337,7 +339,7 @@ class HathiRecord():
     def buildWork(self):
         """Construct the SFR Work object from the Hathi data"""
         self.work.title = self.ingest['title']
-        
+
         logger.info('Creating work record for {}'.format(self.work.title))
         # The primary identifier for this work is a HathiTrust bib reference
         self.work.primary_identifier = Identifier(
@@ -370,7 +372,6 @@ class HathiRecord():
             self.parseAuthor(self.ingest['author'])
         except KeyError:
             logger.warning('No author associated with record {}'.format(self.work))
-            
 
     def buildInstance(self, countryCodes):
         """Constrict an instance record from the Hathi data provided. As
@@ -401,6 +402,19 @@ class HathiRecord():
         logger.debug('Setting copyright date to {}'.format(
             self.ingest['copyright_date']
         ))
+
+        coverFetch = HathiCover(self.ingest['htid'])
+        pageURL = coverFetch.getPageFromMETS()
+        if pageURL is not None:
+            logger.debug('Add cover image {} to instance'.format(pageURL))
+            self.instance.addClassItem('links', Link, **{
+                'url': pageURL,
+                'media_type': 'image/jpeg',
+                'flags': {
+                    'cover': True,
+                    'temporary': True,
+                }
+            })
 
         self.parsePubInfo(self.ingest['publisher_pub_date'])
 
@@ -473,7 +487,6 @@ class HathiRecord():
 
         # Add item to parent instance
         self.instance.formats.append(self.item)
-
 
     def createRights(self):
         """HathiTrust contains a strong set of rights data per item, including

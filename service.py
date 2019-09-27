@@ -42,7 +42,7 @@ def handler(event, context):
     # Check if the event is set to have certain local-only characteristics
     # if it does, this is being run in a non-scheduled way on a local file.
     # Load the local file defined in the event, otherwise fetch file from Hathi
-    
+
     columns = [
             'htid',
             'access',
@@ -76,7 +76,7 @@ def handler(event, context):
         csvFile = loadLocalCSV(event['localFile'])
     else:
         logger.info('Checking for updates from HathiTrust TSV files')
-        
+
         csvFile = fetchHathiCSV()
         logger.info('Returning {} records fetched from HathiTrust'.format(
             str(len(csvFile))
@@ -119,7 +119,7 @@ def loadLocalCSV(localFile):
     with hathiFile:
         rightsSkips = ['ic', 'icus', 'ic-world', 'und']
         hathiReader = csv.reader(hathiFile, delimiter='\t')
-        rows = [ r for r in hathiReader if r[2] not in rightsSkips ]
+        rows = [r for r in hathiReader if r[2] not in rightsSkips]
     logger.debug('Loaded {} rows from {}'.format(str(len(rows)), localFile))
     return rows
 
@@ -129,12 +129,16 @@ def fetchHathiCSV():
     fileList = requests.get(os.environ['HATHI_DATAFILES'])
     if fileList.status_code != 200:
         raise ProcessingError('Unable to load data files')
-    
+
     logger.debug('Loaded JSON list of HathiFiles')
     fileJSON = fileList.json()
 
     logger.debug('Sorting JSON list of files by created date')
-    fileJSON.sort(key=lambda x: datetime.strptime(x['created'], '%Y-%m-%dT%H:%M:%S-%f').timestamp(), reverse=True)
+    fileJSON.sort(
+        key=lambda x: datetime.strptime(
+            x['created'], '%Y-%m-%dT%H:%M:%S-%f').timestamp(),
+        reverse=True
+    )
     for hathiFile in fileJSON:
         if hathiFile['full'] is False:
             logger.info('Found most recent file {} updated on {}'.format(
@@ -142,11 +146,13 @@ def fetchHathiCSV():
                 hathiFile['created']
             ))
             with open('/tmp/tmp_hathi.txt.gz', 'wb') as hathiTSV:
-                logger.debug('Storing Downloaded HathiFile in /tmp/tmp_hathi.txt.gz')
+                logger.debug(
+                    'Storing Downloaded HathiFile in /tmp/tmp_hathi.txt.gz'
+                )
                 hathiReq = requests.get(hathiFile['url'])
                 hathiTSV.write(hathiReq.content)
             break
-    
+
     # At present we aren't downloading in-copyright works, so skip anything
     # that has these rights codes
     rightsSkips = ['ic', 'icus', 'ic-world', 'und']
@@ -154,9 +160,9 @@ def fetchHathiCSV():
     with gzip.open('/tmp/tmp_hathi.txt.gz', 'rt') as unzipTSV:
         logger.debug('Parsing txt.gz file downloaded into TSV file')
         hathiTSV = csv.reader(unzipTSV, delimiter='\t')
-        
+
         logger.debug('Parse for all rows to return')
-        return [ r for r in hathiTSV if r[2] not in rightsSkips ]
+        return [r for r in hathiTSV if r[2] not in rightsSkips]
 
 
 def fileParser(fileRows, columns):
@@ -183,7 +189,7 @@ def fileParser(fileRows, columns):
     # Vars for managing multiprocessing component
     outcomes = []
     processes = []
-    chunkSize = int(ceil(len(fileRows) / 4))
+    chunkSize = int(ceil(len(fileRows) / 8))
 
     for chunk in generateChunks(fileRows, chunkSize):
         logger.info('Starting child Process')
@@ -212,6 +218,7 @@ def fileParser(fileRows, columns):
             proc.join()
 
     return outcomes
+
 
 def generateChunks(rows, size):
     """Simple function to break array of rows into chunks of equal sizes,
