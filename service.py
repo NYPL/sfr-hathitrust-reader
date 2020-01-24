@@ -1,6 +1,9 @@
+import boto3
+from base64 import b64encode, b64decode
 import csv
 import gzip
 from itertools import islice
+import json
 import os
 from math import ceil
 import sys
@@ -88,6 +91,9 @@ def handler(event, context):
             logger.info('No daily update from HathiTrust. No actions to take')
             return [('empty', 'no updated records in retrieval period')]
 
+        # Get chunk for processing and pass remainder to a recursive call
+        csvFile = sliceAndRecurse(csvFile, context)
+
     # This return will be reflected in the CloudWatch logs
     # but doesn't actually do anything
 
@@ -105,6 +111,21 @@ def handler(event, context):
     logger.info('Successfully invoked lambda')
     logger.debug('Processed Rows {}'.format(len(output)))
     return output
+
+
+def sliceAndRecurse(csvFile, context):
+    start = context.client_context.custom.get('start', 0)
+    processingRows = csvFile[start:start+500]
+
+    if start + 500 < len(csvFile):
+        lambdaClient = boto3.client('lambda')
+        lambdaClient.invoke(
+            FunctionName=context.function_name,
+            InvocationType='Event',
+            ClientContext=b64encode(json.dumps({'start': start + 500}).encode('gbk'))
+        )
+
+    return processingRows
 
 
 def loadLocalCSV(localFile, readStart, readSize):

@@ -8,7 +8,8 @@ from service import (
     fileParser,
     rowParser,
     processChunk,
-    generateChunks
+    generateChunks,
+    sliceAndRecurse
 )
 from helpers.errorHelpers import ProcessingError, DataError, KinesisError
 
@@ -31,7 +32,8 @@ class TestHandler(unittest.TestCase):
 
     @patch('service.fetchHathiCSV', return_value=['row1', 'row2'])
     @patch('service.fileParser', return_value=[1, 2])
-    def test_handler_scheduled(self, mock_parser, mock_fetch):
+    @patch('service.sliceAndRecurse', return_value=[1, 2])
+    def test_handler_scheduled(self, mock_slice, mock_parser, mock_fetch):
         testRec = {
             'source': 'Kinesis',
             'Records': [{'some': 'record'}]
@@ -40,11 +42,13 @@ class TestHandler(unittest.TestCase):
         resp = handler(testRec, None)
         mock_fetch.assert_called_once()
         mock_parser.assert_called_once()
+        mock_slice.assert_called_once_with(['row1', 'row2'], None)
         self.assertEqual(resp, [1, 2])
 
     @patch('service.fetchHathiCSV', return_value=['row1', 'row2'])
     @patch('service.fileParser', return_value=[])
-    def test_handler_empty(self, mock_file, mock_fetch):
+    @patch('service.sliceAndRecurse', return_value=[])
+    def test_handler_empty(self, mock_slice, mock_file, mock_fetch):
         testRec = {
             'source': 'Kinesis',
             'Records': [{'some': 'record'}]
@@ -52,6 +56,42 @@ class TestHandler(unittest.TestCase):
         resp = handler(testRec, None)
         mock_fetch.assert_called_once()
         self.assertEqual(resp, [])
+
+    @patch('service.boto3')
+    def test_sliceAndRecurse_start_0(self, mockBoto):
+        mockContext = MagicMock()
+        mockContextClient = MagicMock()
+        mockContextClient.custom = {}
+        mockContext.client_context = mockContextClient
+
+        testArray = [i for i in range(750)]
+
+        mockClient = MagicMock()
+        mockBoto.client.return_value = mockClient
+
+        outRows = sliceAndRecurse(testArray, mockContext)
+
+        self.assertEqual(len(outRows), 500)
+        mockBoto.client.assert_called_once_with('lambda')
+        mockClient.invoke.assert_called_once()
+
+    @patch('service.boto3')
+    def test_sliceAndRecurse_start_500(self, mockBoto):
+        mockContext = MagicMock()
+        mockContextClient = MagicMock()
+        mockContextClient.custom = {'start': 500}
+        mockContext.client_context = mockContextClient
+
+        testArray = [i for i in range(750)]
+
+        mockClient = MagicMock()
+        mockBoto.client.return_value = mockClient
+
+        outRows = sliceAndRecurse(testArray, mockContext)
+
+        self.assertEqual(len(outRows), 250)
+        mockBoto.client.assert_not_called()
+        mockClient.invoke.assert_not_called()
 
     def test_local_csv_success(self):
         mOpen = mock_open(read_data='id1,r1.2,pd\nid2,r2.2,pd\n')
