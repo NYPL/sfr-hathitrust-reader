@@ -77,7 +77,7 @@ def handler(event, context):
             'access_profile',
             'author'
         ]
-    if event['source'] == 'local.file':
+    if event.get('source', None) == 'local.file':
         logger.info('Loading records from local file')
         csvFile = loadLocalCSV(event['localFile'], event['start'], event['size'])
     else:
@@ -122,7 +122,7 @@ def sliceAndRecurse(csvFile, context):
         lambdaClient.invoke(
             FunctionName=context.function_name,
             InvocationType='Event',
-            ClientContext=b64encode(json.dumps({'start': start + 500}).encode('gbk'))
+            ClientContext=b64encode(json.dumps({'start': start + 500}).encode()).decode()
         )
 
     return processingRows
