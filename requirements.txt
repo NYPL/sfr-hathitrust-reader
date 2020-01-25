@@ -1,6 +1,3 @@
-coverage
-flake8
-python-lambda
 pyyaml
 requests
 requests_oauthlib
