@@ -1,5 +1,4 @@
 import boto3
-from base64 import b64encode, b64decode
 import csv
 import gzip
 from itertools import islice
@@ -92,7 +91,7 @@ def handler(event, context):
             return [('empty', 'no updated records in retrieval period')]
 
         # Get chunk for processing and pass remainder to a recursive call
-        csvFile = sliceAndRecurse(csvFile, context)
+        csvFile = sliceAndRecurse(csvFile, event, context)
 
     # This return will be reflected in the CloudWatch logs
     # but doesn't actually do anything
@@ -113,16 +112,19 @@ def handler(event, context):
     return output
 
 
-def sliceAndRecurse(csvFile, context):
-    start = context.client_context.custom.get('start', 0)
+def sliceAndRecurse(csvFile, event, context):
+    start = event.get('start', 0)
     processingRows = csvFile[start:start+500]
+    logger.info('Loading Rows {} to {} of {}'.format(
+        start, start + 500, len(csvFile)
+    ))
 
     if start + 500 < len(csvFile):
         lambdaClient = boto3.client('lambda')
         lambdaClient.invoke(
             FunctionName=context.function_name,
             InvocationType='Event',
-            ClientContext=b64encode(json.dumps({'start': start + 500}).encode()).decode()
+            Payload=json.dumps({'start': start + 500}).encode()
         )
 
     return processingRows
