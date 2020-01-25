@@ -42,7 +42,7 @@ class TestHandler(unittest.TestCase):
         resp = handler(testRec, None)
         mock_fetch.assert_called_once()
         mock_parser.assert_called_once()
-        mock_slice.assert_called_once_with(['row1', 'row2'], None)
+        mock_slice.assert_called_once_with(['row1', 'row2'], testRec, None)
         self.assertEqual(resp, [1, 2])
 
     @patch('service.fetchHathiCSV', return_value=['row1', 'row2'])
@@ -60,16 +60,13 @@ class TestHandler(unittest.TestCase):
     @patch('service.boto3')
     def test_sliceAndRecurse_start_0(self, mockBoto):
         mockContext = MagicMock()
-        mockContextClient = MagicMock()
-        mockContextClient.custom = {}
-        mockContext.client_context = mockContextClient
 
         testArray = [i for i in range(750)]
 
         mockClient = MagicMock()
         mockBoto.client.return_value = mockClient
 
-        outRows = sliceAndRecurse(testArray, mockContext)
+        outRows = sliceAndRecurse(testArray, {}, mockContext)
 
         self.assertEqual(len(outRows), 500)
         mockBoto.client.assert_called_once_with('lambda')
@@ -78,16 +75,13 @@ class TestHandler(unittest.TestCase):
     @patch('service.boto3')
     def test_sliceAndRecurse_start_500(self, mockBoto):
         mockContext = MagicMock()
-        mockContextClient = MagicMock()
-        mockContextClient.custom = {'start': 500}
-        mockContext.client_context = mockContextClient
 
         testArray = [i for i in range(750)]
 
         mockClient = MagicMock()
         mockBoto.client.return_value = mockClient
 
-        outRows = sliceAndRecurse(testArray, mockContext)
+        outRows = sliceAndRecurse(testArray, {'start': 500}, mockContext)
 
         self.assertEqual(len(outRows), 250)
         mockBoto.client.assert_not_called()
